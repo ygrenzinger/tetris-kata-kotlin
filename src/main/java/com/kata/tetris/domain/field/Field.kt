@@ -20,42 +20,29 @@ data class Field(private val movingBlocks: Set<Position>,
 
     constructor(tetromino: Tetromino) : this(setOf(), setOf(), tetromino)
 
-    fun startGame(): Field {
-        return placeTetromino(tetromino).get()
-    }
+    fun startGame() = placeTetromino(tetromino).get()
 
-    fun rotateTetromino(): Optional<Field> {
-        return actOnTretromino {
-            when {
-                isTetrominoLeaningOnLeftWall(tetromino) -> tetromino.leftWallKick()
-                isTetrominoLeaningOnRightWall(tetromino) -> tetromino.rightWallKick()
-                else -> tetromino.rotate()
-            }
+    fun rotateTetromino() = actOnTretromino {
+        when {
+            isTetrominoLeaningOnLeftWall(tetromino) -> tetromino.leftWallKick()
+            isTetrominoLeaningOnRightWall(tetromino) -> tetromino.rightWallKick()
+            else -> tetromino.rotate()
         }
     }
 
-    fun moveTetrominoLeft(): Optional<Field> {
-        return actOnTretromino { tetromino.moveLeft() }
-    }
+    fun moveTetrominoLeft() = actOnTretromino { tetromino.moveLeft() }
 
-    fun moveTetrominoRight(): Optional<Field> {
-        return actOnTretromino { tetromino.moveRight() }
-    }
+    fun moveTetrominoRight() = actOnTretromino { tetromino.moveRight() }
 
-    fun moveTetrominoDown(): Optional<Field> {
-        return actOnTretromino { tetromino.moveDown() }
-    }
+    fun moveTetrominoDown() = actOnTretromino { tetromino.moveDown() }
 
-    fun moveDownAutomatically(shapeSupplier: Supplier<Shape>): MoveDownAutomaticallyResult {
-        return moveTetrominoDown()
+    fun moveDownAutomatically(shapeSupplier: Supplier<Shape>): MoveDownAutomaticallyResult =
+            moveTetrominoDown()
                 .map { MoveDownAutomaticallyResult(Score(), it, false) }
                 .orElseGet { fixTetromino(shapeSupplier) }
-    }
 
-    private fun actOnTretromino(action: (tetromino: Tetromino) -> Tetromino): Optional<Field> {
-        val nextTetromino = action.invoke(tetromino)
-        return placeTetromino(nextTetromino)
-    }
+    private fun actOnTretromino(action: (tetromino: Tetromino) -> Tetromino) =
+            placeTetromino(action.invoke(tetromino))
 
     private fun placeTetromino(tetromino: Tetromino): Optional<Field> {
         if (!isPossiblePosition(tetromino)) {
@@ -65,11 +52,12 @@ data class Field(private val movingBlocks: Set<Position>,
     }
 
     private fun fixTetromino(shapeSupplier: Supplier<Shape>): MoveDownAutomaticallyResult {
-        val result = removeLines(fixedBlocks + movingBlocks)
-        val field = Field(setOf(), result.second, Tetromino.createNewTetrominoAtTop(shapeSupplier.get()))
+        val (nbOfLinesRemoved, fixedBlocks) = removeLines(fixedBlocks + movingBlocks)
+        val field = Field(setOf(), fixedBlocks, Tetromino.createNewTetrominoAtTop(shapeSupplier.get()))
+        val score = Score.buildScoreForLinesRemoved(nbOfLinesRemoved)
         return field.placeTetromino(field.tetromino)
-                .map { MoveDownAutomaticallyResult(Score.buildScoreForLinesRemoved(result.first), it, false) }
-                .orElse(MoveDownAutomaticallyResult(Score.buildScoreForLinesRemoved(result.first), field, true))
+                .map { MoveDownAutomaticallyResult(score, it, false) }
+                .orElse(MoveDownAutomaticallyResult(score, field, true))
     }
 
     private fun removeLines(fixedBlocks: Set<Position>): Pair<Int, Set<Position>> {
@@ -77,63 +65,71 @@ data class Field(private val movingBlocks: Set<Position>,
         return if (firstFullRow != null) {
             removeLines(fixedBlocks, firstFullRow, 0)
         } else {
-            Pair(0, fixedBlocks);
+            Pair(0, fixedBlocks)
         }
     }
 
-    private fun removeLines(fixedBlocks: Collection<Position>,
-                            rowIndex: Int,
-                            numberOfLinesRemoved: Int) : Pair<Int, Set<Position>> {
+    //Tail recursion optimization \o/
+    private tailrec fun removeLines(fixedBlocks: Collection<Position>,
+                                    rowIndex: Int,
+                                    numberOfLinesRemoved: Int): Pair<Int, Set<Position>> {
         if (isRowEmpty(fixedBlocks, rowIndex)) {
             return Pair(numberOfLinesRemoved, fixedBlocks.toSet())
         }
         if (isRowFull(fixedBlocks, rowIndex)) {
             val newFixedBlocks = moveDownAllUpperLines(fixedBlocks.filter { it.row != rowIndex }, rowIndex)
-            return removeLines(newFixedBlocks, rowIndex, numberOfLinesRemoved+1)
+            return removeLines(newFixedBlocks, rowIndex, numberOfLinesRemoved + 1)
         }
-        return removeLines(fixedBlocks, rowIndex+1, numberOfLinesRemoved)
+        return removeLines(fixedBlocks, rowIndex + 1, numberOfLinesRemoved)
     }
 
-    private fun isRowFull(fixedBlocks: Collection<Position>, row: Int): Boolean {
-        return countFixedBlocksOnRow(fixedBlocks, row) == DEFAULT_WIDTH
-    }
+    private fun isRowFull(fixedBlocks: Collection<Position>, row: Int) =
+            countFixedBlocksOnRow(fixedBlocks, row) == DEFAULT_WIDTH
 
-    private fun isRowEmpty(fixedBlocks: Collection<Position>, row: Int): Boolean {
-        return countFixedBlocksOnRow(fixedBlocks, row) == 0
-    }
+    private fun isRowEmpty(fixedBlocks: Collection<Position>, row: Int) =
+            countFixedBlocksOnRow(fixedBlocks, row) == 0
 
     private fun countFixedBlocksOnRow(fixedBlocks: Collection<Position>, row: Int) =
             (0..DEFAULT_WIDTH).filter { fixedBlocks.contains(Position(row, it)) }.count()
 
-    private fun moveDownAllUpperLines(fixedBlocks: List<Position>, row: Int): List<Position> {
-        return fixedBlocks.map { if (it.row > row) { Position(it.row - 1, it.column) } else { it } }
+    private fun moveDownAllUpperLines(fixedBlocks: List<Position>, row: Int) =
+            fixedBlocks.map {moveDownPositionForUpperLines(it, row) }
+
+    private fun moveDownPositionForUpperLines(it: Position, row: Int): Position {
+        return if (it.row > row) {
+            Position(it.row - 1, it.column)
+        } else {
+            it
+        }
     }
 
-    private fun isPossiblePosition(tetromino: Tetromino) = tetromino.positionsOnField().all { this.isPossiblePosition(it) }
+    private fun isPossiblePosition(tetromino: Tetromino) =
+            tetromino.positionsOnField().all { this.isPossiblePosition(it) }
 
-    private fun isPossiblePosition(position: Position) = isInsideField(position) && isNotOverlappingFixedBlock(position)
+    private fun isPossiblePosition(position: Position) =
+            isInsideField(position) && isNotOverlappingFixedBlock(position)
 
-    private fun isNotOverlappingFixedBlock(position: Position) = blockAt(position) != FIXED
+    private fun isNotOverlappingFixedBlock(position: Position) =
+            blockAt(position) != FIXED
 
-    private fun isInsideField(position: Position) = position.row >= 0 && position.column >= 0 && position.column < DEFAULT_WIDTH
+    private fun isInsideField(position: Position) =
+            position.row >= 0 && position.column >= 0 && position.column < DEFAULT_WIDTH
 
-    private fun isTetrominoLeaningOnRightWall(tetromino: Tetromino) = tetromino.positionsOnField().any { it.column == DEFAULT_WIDTH - 1 }
+    private fun isTetrominoLeaningOnRightWall(tetromino: Tetromino) =
+            tetromino.positionsOnField().any { it.column == DEFAULT_WIDTH - 1 }
 
-    private fun isTetrominoLeaningOnLeftWall(tetromino: Tetromino) = tetromino.positionsOnField().any { it.column == 0 }
+    private fun isTetrominoLeaningOnLeftWall(tetromino: Tetromino) =
+            tetromino.positionsOnField().any { it.column == 0 }
 
-    internal fun fixedBlockAt(position: Position): Field {
-        return Field(movingBlocks, fixedBlocks + position, tetromino)
-    }
+    internal fun fixedBlockAt(position: Position) =
+            Field(movingBlocks, fixedBlocks + position, tetromino)
 
     internal fun blockAt(row: Int, column: Int) = blockAt(Position(row, column))
 
-    private fun blockAt(position: Position): Block {
-        val block = when {
-            movingBlocks.contains(position) -> MOVING
-            fixedBlocks.contains(position) -> FIXED
-            else -> EMPTY
-        }
-        return block
+    private fun blockAt(position: Position) = when {
+        movingBlocks.contains(position) -> MOVING
+        fixedBlocks.contains(position) -> FIXED
+        else -> EMPTY
     }
 
 }

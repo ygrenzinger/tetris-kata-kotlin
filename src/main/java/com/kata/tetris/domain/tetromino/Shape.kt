@@ -2,9 +2,8 @@ package com.kata.tetris.domain.tetromino
 
 data class Shape(val type: ShapeType, val size: Int, val shapeByOrientations: Map<Orientation, ShapeForm>) {
 
-    internal fun blocksByOrientation(orientation: Orientation): Array<BooleanArray> {
-        return shapeByOrientations.getValue(orientation).blocks
-    }
+    internal fun blocksByOrientation(orientation: Orientation) =
+            shapeByOrientations.getValue(orientation).blocks
 
     internal fun shapeForOrientationToString(orientation: Orientation): String {
         val blocks = blocksByOrientation(orientation)
@@ -24,24 +23,22 @@ data class Shape(val type: ShapeType, val size: Int, val shapeByOrientations: Ma
 
     internal fun leftWallKickPossibleShift(orientation: Orientation): Int {
         val shape = blocksByOrientation(orientation)
-        var shift = 0
-        while (emptyColumn(shape, shift)) {
-            shift++
-        }
-        return shift
+        val predicate: (Int) -> Boolean = { emptyColumn(shape, it) }
+        return possibleShift(predicate)
     }
 
     internal fun rightWallKickPossibleShift(orientation: Orientation): Int {
         val shape = blocksByOrientation(orientation)
-        var shift = 0
-        while (emptyColumn(shape, size - 1 - shift)) {
-            shift++
-        }
-        return shift
+        val predicate: (Int) -> Boolean = { emptyColumn(shape, size - 1 - it) }
+        return possibleShift(predicate)
     }
 
-    private fun emptyColumn(shape: Array<BooleanArray>, column: Int): Boolean {
-        return shape.all { !it[column] }
-    }
+    private fun possibleShift(predicate: (Int) -> Boolean) =
+            generateSequence(0, { it + 1 })
+                .takeWhile(predicate)
+                .lastOrNull()?:0
+
+    private fun emptyColumn(shape: Array<BooleanArray>, column: Int) =
+            shape.all { !it[column] }
 
 }

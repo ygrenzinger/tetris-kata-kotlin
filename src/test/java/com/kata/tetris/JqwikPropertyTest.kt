@@ -33,7 +33,6 @@ class JqwikPropertyTest {
 
     private fun assertThatGameIsOverOrOnGoing(tetris: Tetris) {
         if (tetris.gameOver) {
-            println("Game Over")
             assertThat(tetris.isOnGoingGame()).isFalse()
         } else {
             assertThat(tetris.isOnGoingGame()).isTrue()
